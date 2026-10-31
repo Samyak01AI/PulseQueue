@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+web/node_modules
+web/.vite
+.pytest_cache
+.vscode
+.idea
+
