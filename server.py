@@ -605,6 +605,41 @@ async def startup_event():
 
     asyncio.create_task(simulation_loop())
 
+    # Render Free-Tier Keep-Alive Pinger
+    # Render automatically sets RENDER_EXTERNAL_URL to the public domain (e.g. https://pulsequeue.onrender.com)
+    render_url = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("PUBLIC_APP_URL")
+    if render_url:
+        import urllib.request
+        print(f"[Keep-Alive] Render deployment detected: {render_url}")
+        print("[Keep-Alive] Auto-pinger active — will ping every 12 minutes to keep instance awake 24/7.")
+
+        def perform_ping(target_url: str):
+            req = urllib.request.Request(
+                target_url,
+                headers={"User-Agent": "PulseQueue-KeepAlive/2.0"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.status
+
+        async def keep_alive_loop():
+            # Initial startup delay (5s in test mode, 60s in production)
+            initial_delay = 5 if os.environ.get("TEST_PING") else 60
+            await asyncio.sleep(initial_delay)
+            target = f"{render_url.rstrip('/')}/api/state"
+            interval = int(os.environ.get("PING_INTERVAL_SECONDS", "720"))  # 12 minutes default
+
+            while True:
+                try:
+                    status = await asyncio.to_thread(perform_ping, target)
+                    print(f"[Keep-Alive] Successfully pinged {target} (status {status}). Instance kept awake.")
+                except Exception as e:
+                    print(f"[Keep-Alive] Ping notice for {target}: {e}")
+                await asyncio.sleep(interval)
+
+        asyncio.create_task(keep_alive_loop())
+    else:
+        print("[Keep-Alive] Running in local mode. (RENDER_EXTERNAL_URL not set).")
+
 
 # Mount web dist if exists
 web_dist = os.path.join(os.path.dirname(__file__), "web", "dist")
